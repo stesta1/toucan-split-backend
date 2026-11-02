@@ -36,7 +36,17 @@ app.use('/api/push', pushRouter);
 app.use('/api/credit-cards', creditCardsRouter);
 app.use('/api/admin',  requireAuth, requireAdmin, adminRouter);
 
-app.get('/api/health', (req, res) => res.json({ ok: true }));
+// Health check para el hosting: 200 si la API está arriba y conectada a Mongo, 503 si no.
+function health(req, res) {
+  const dbConnected = mongoose.connection.readyState === 1;
+  res.status(dbConnected ? 200 : 503).json({
+    ok: dbConnected,
+    db: dbConnected ? 'connected' : 'disconnected',
+    uptime: Math.round(process.uptime()),
+  });
+}
+app.get('/health', health);
+app.get('/api/health', health);
 
 // El frontend vive en su propia app (Front/), acá solo se sirve la API.
 app.use((req, res) => {

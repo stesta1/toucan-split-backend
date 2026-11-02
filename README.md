@@ -10,7 +10,9 @@ npm install
 npm run dev            # o npm start
 ```
 
-La API queda en `http://localhost:291/api` (health check: `GET /api/health`).
+La API queda en `http://localhost:291/api`.
+
+Health check: `GET /health` (también en `/api/health`). Devuelve `200 { ok: true, db: "connected", uptime }` si la API está arriba y conectada a Mongo, o `503` si se perdió la conexión.
 
 ## Variables de entorno
 
