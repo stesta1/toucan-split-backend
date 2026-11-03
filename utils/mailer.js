@@ -10,14 +10,14 @@ const transporter = nodemailer.createTransport({
 
 export async function sendPasswordResetEmail(to, username, newPassword) {
   await transporter.sendMail({
-    from: `TarugoCash <${process.env.GMAIL_USER}>`,
+    from: `Toucan Split <${process.env.GMAIL_USER}>`,
     to,
-    subject: 'Tu nueva contraseña de TarugoCash',
+    subject: 'Tu nueva contraseña de Toucan Split',
     text:
       `Hola @${username},\n\n` +
-      `Reseteamos tu contraseña de TarugoCash. Esta es tu contraseña nueva:\n\n` +
+      `Reseteamos tu contraseña de Toucan Split. Esta es tu contraseña nueva:\n\n` +
       `${newPassword}\n\n` +
       `Te recomendamos cambiarla apenas inicies sesión, desde Configuración de la cuenta.\n\n` +
-      `— TarugoCash`,
+      `— Toucan Split`,
   });
 }

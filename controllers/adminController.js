@@ -29,7 +29,7 @@ export async function createUser(req, res) {
     if (existing) return res.status(409).json({ error: 'Ese usuario ya existe' });
 
     const hash = await bcrypt.hash(password, 10);
-    const placeholderEmail = `${username.trim().toLowerCase()}.${crypto.randomBytes(4).toString('hex')}@sin-email.tarugoapp.local`;
+    const placeholderEmail = `${username.trim().toLowerCase()}.${crypto.randomBytes(4).toString('hex')}@sin-email.toucansplit.local`;
     const user = await User.create({
       username: username.trim().toLowerCase(),
       password: hash,

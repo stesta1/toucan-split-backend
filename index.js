@@ -69,6 +69,18 @@ async function ensureAdmin() {
   }
 }
 
+// Los usuarios creados desde el admin sin mail tenían un mail de relleno con la marca
+// vieja (@sin-email.tarugoapp.local). Se pasa a la nueva; si no queda ninguno, no hace nada.
+async function renameLegacyPlaceholderEmails() {
+  const OLD_DOMAIN = '@sin-email.tarugoapp.local';
+  const users = await User.find({ email: /@sin-email\.tarugoapp\.local$/ });
+  for (const u of users) {
+    u.email = u.email.replace(OLD_DOMAIN, '@sin-email.toucansplit.local');
+    await u.save();
+  }
+  if (users.length) console.log(`Mails de relleno renombrados a la marca nueva: ${users.length}`);
+}
+
 if (!process.env.MONGO_DB_URL) {
   console.error('Falta la variable de entorno MONGO_DB_URL (cadena de conexión a Mongo)');
   process.exit(1);
@@ -79,6 +91,7 @@ mongoose
   .then(async () => {
     console.log('Conectado a MongoDB');
     await ensureAdmin();
+    await renameLegacyPlaceholderEmails().catch((e) => console.error('No se pudieron renombrar los mails de relleno:', e.message));
     startCreditCardReminders();
     app.listen(PORT, () => console.log(`Backend corriendo en http://localhost:${PORT}`));
   })

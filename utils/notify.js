@@ -21,7 +21,7 @@ export async function notifyUsers(userIds, actorId, { type, message, link = null
   );
 
   const pushPayload = {
-    title: PUSH_TITLES[type] || 'TarugoCash',
+    title: PUSH_TITLES[type] || 'Toucan Split',
     body: message,
     url: link,
   };
