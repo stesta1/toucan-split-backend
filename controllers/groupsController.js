@@ -2,6 +2,7 @@ import Group from '../models/Group.js';
 import User from '../models/User.js';
 import { matchDebts } from '../utils/settlement.js';
 import { notifyUsers } from '../utils/notify.js';
+import { nonFriendIds } from '../utils/friends.js';
 
 export function serializeGroup(g, withExpenses = true) {
   const obj = {
@@ -76,6 +77,9 @@ export async function createGroup(req, res) {
     if (!name) return res.status(400).json({ error: 'El nombre es requerido' });
 
     const ids = Array.from(new Set([...(memberIds || []), req.user.id]));
+    if (!req.user.isAdmin && (await nonFriendIds(req.user.id, ids)).length > 0) {
+      return res.status(403).json({ error: 'Solo podés agregar a tus amigos' });
+    }
     const users = await User.find({ _id: { $in: ids } });
     if (users.length < 2) {
       return res.status(400).json({ error: 'Seleccioná al menos 1 participante más' });
@@ -121,6 +125,9 @@ export async function addMembers(req, res) {
     const newIds = memberIds.filter((id) => !existingIds.has(id));
     if (newIds.length === 0) {
       return res.status(400).json({ error: 'Esos usuarios ya son parte del grupo' });
+    }
+    if (!req.user.isAdmin && (await nonFriendIds(req.user.id, newIds)).length > 0) {
+      return res.status(403).json({ error: 'Solo podés agregar a tus amigos' });
     }
 
     const users = await User.find({ _id: { $in: newIds } });

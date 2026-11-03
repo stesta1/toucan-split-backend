@@ -1,8 +1,11 @@
 import User from '../models/User.js';
+import { friendIdsOf } from '../utils/friends.js';
 
+// Usuarios que el logueado puede sumar a un split: sus amigos (el admin ve a todos).
 export async function getUsers(req, res) {
   try {
-    const users = await User.find().sort({ name: 1 });
+    const filter = req.user.isAdmin ? {} : { _id: { $in: await friendIdsOf(req.user.id) } };
+    const users = await User.find(filter).sort({ name: 1 });
     res.json(users.map((u) => ({
       id: u._id.toString(),
       name: u.name,

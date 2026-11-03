@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import User from '../models/User.js';
 import Group from '../models/Group.js';
 import QuickSplit from '../models/QuickSplit.js';
+import Friendship from '../models/Friendship.js';
 import { serializeGroup } from './groupsController.js';
 
 export async function getUsers(req, res) {
@@ -98,6 +99,8 @@ export async function deleteUser(req, res) {
     }
 
     await user.deleteOne();
+    const id = user._id.toString();
+    await Friendship.deleteMany({ $or: [{ requester: id }, { recipient: id }] });
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

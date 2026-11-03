@@ -6,6 +6,8 @@ const PUSH_TITLES = {
   payment_received: 'Pago recibido',
   group_member_added: 'Te agregaron a un split',
   credit_card_due: 'Vencimiento de tarjeta',
+  friend_request: 'Solicitud de amistad',
+  friend_accepted: 'Nuevo amigo',
 };
 
 // Crea una notificación para cada userId de la lista, salvo el que generó la acción,

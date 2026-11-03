@@ -12,7 +12,7 @@ const notificationSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['expense_added', 'payment_received', 'group_member_added', 'credit_card_due'],
+    enum: ['expense_added', 'payment_received', 'group_member_added', 'credit_card_due', 'friend_request', 'friend_accepted'],
   },
   message: { type: String, required: true },
   link: { type: String, default: null },
