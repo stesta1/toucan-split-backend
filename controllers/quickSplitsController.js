@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import QuickSplit from '../models/QuickSplit.js';
 import User from '../models/User.js';
-import { matchDebts } from '../utils/settlement.js';
+import { expenseShare, expensesTotal, matchDebts } from '../utils/settlement.js';
 
 const SHARE_CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'; // sin 0/O/1/l/I
 
@@ -34,9 +34,11 @@ function serializeQuickSplit(qs, creator = null) {
       // El creador es el único con cuenta: se muestra su alias para que le transfieran.
       alias: m.id === qs.createdBy ? creator?.alias ?? null : null,
     })),
+    total: expensesTotal(qs.expenses),
     expenses: qs.expenses.map((e) => ({
       description: e.description,
       amount: e.amount,
+      share: expenseShare(e),
       paidBy: e.paidBy,
       participants: e.participants,
     })),

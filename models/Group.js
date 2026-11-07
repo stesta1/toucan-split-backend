@@ -31,6 +31,10 @@ const groupSchema = new mongoose.Schema({
   }],
   expenses: [expenseSchema],
   payments: [paymentSchema],
+  // Sube en 1 con cada cambio (gastos, pagos, integrantes). La app manda la versión que
+  // está mostrando al registrar un pago o editar un gasto: si no es la actual, se rechaza.
+  // Un arreglo a mano en la base también tiene que subirla: {"$inc": {"version": 1}}.
+  version: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
 });
 
