@@ -1,6 +1,7 @@
 import Friendship, { pairKey } from '../models/Friendship.js';
 import User from '../models/User.js';
 import { notifyUsers } from '../utils/notify.js';
+import { publish } from '../utils/live.js';
 
 function publicUser(u) {
   return {
@@ -157,6 +158,8 @@ export async function deleteRequest(req, res) {
       return res.status(404).json({ error: 'Solicitud no encontrada' });
     }
     await friendship.deleteOne();
+    // A la otra persona se le actualiza la lista de solicitudes al instante.
+    publish([friendship.requester === myId ? friendship.recipient : friendship.requester], 'friends');
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -171,6 +174,7 @@ export async function removeFriend(req, res) {
       status: 'accepted',
     });
     if (result.deletedCount === 0) return res.status(404).json({ error: 'No son amigos' });
+    publish([req.params.userId], 'friends');
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

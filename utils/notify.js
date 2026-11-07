@@ -1,9 +1,11 @@
 import Notification from '../models/Notification.js';
 import { sendPushToUsers, sendExpoPushToUsers } from './push.js';
+import { publish } from './live.js';
 
 const PUSH_TITLES = {
   expense_added: 'Nuevo gasto',
   payment_received: 'Pago recibido',
+  payment_confirmed: 'Pago registrado',
   group_member_added: 'Te agregaron a un split',
   credit_card_due: 'Vencimiento de tarjeta',
   friend_request: 'Solicitud de amistad',
@@ -19,6 +21,7 @@ export async function notifyUsers(userIds, actorId, { type, message, link = null
   await Notification.insertMany(
     recipients.map((user) => ({ user, type, message, link, fromUser }))
   );
+  publish(recipients, 'notification', { type });
 
   const pushPayload = {
     title: PUSH_TITLES[type] || 'Toucan Split',
