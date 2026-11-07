@@ -5,6 +5,9 @@ import { debtSnapshot, logGroupEvent, plain } from '../utils/groupEvents.js';
 import { notifyUsers } from '../utils/notify.js';
 import { nonFriendIds } from '../utils/friends.js';
 
+// Ventana en la que un gasto idéntico de la misma persona se toma como duplicado.
+const DUPLICATE_WINDOW_MS = 30000;
+
 export function serializeGroup(g, withExpenses = true) {
   const obj = {
     id: g._id.toString(),
@@ -207,6 +210,20 @@ export async function addExpense(req, res) {
     const memberIds = group.members.map((m) => m.id);
     if (!memberIds.includes(paidBy) || !participants.every((p) => memberIds.includes(p))) {
       return res.status(400).json({ error: 'Pagador y participantes deben ser miembros del grupo' });
+    }
+
+    // Mismo gasto cargado dos veces seguidas por la misma persona (doble toque o reenvío):
+    // se rechaza en vez de duplicarlo.
+    const sameParticipants = (a, b) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
+    const duplicate = group.expenses.find((e) =>
+      e.createdBy === req.user.id
+      && Date.now() - new Date(e.createdAt).getTime() < DUPLICATE_WINDOW_MS
+      && e.description === description
+      && e.amount === parseFloat(amount)
+      && e.paidBy === paidBy
+      && sameParticipants(e.participants, participants));
+    if (duplicate) {
+      return res.status(409).json({ error: 'Ese gasto ya se cargó recién. Si es otro gasto igual, esperá unos segundos y cargalo de nuevo.' });
     }
 
     const before = debtSnapshot(group);
