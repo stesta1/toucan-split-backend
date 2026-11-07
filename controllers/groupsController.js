@@ -20,6 +20,7 @@ export function serializeGroup(g, withExpenses = true) {
       amount: e.amount,
       paidBy: e.paidBy,
       participants: e.participants,
+      createdBy: e.createdBy ?? null,
       createdAt: e.createdAt,
     }));
     obj.payments = g.payments.map((p) => ({
@@ -40,6 +41,33 @@ function isMember(group, userId) {
 function isGroupAdmin(group, userId) {
   if (group.createdBy === userId) return true;
   return !!group.members.find((m) => m.id === userId)?.isGroupAdmin;
+}
+
+// Balance neto por persona = lo que pagó − lo que consumió (± pagos registrados).
+function groupBalance(group) {
+  const balance = {};
+  for (const member of group.members) {
+    balance[member.id] = 0;
+  }
+  for (const expense of group.expenses) {
+    const share = expense.amount / expense.participants.length;
+    balance[expense.paidBy] += expense.amount;
+    for (const participantId of expense.participants) {
+      balance[participantId] -= share;
+    }
+  }
+  for (const payment of group.payments) {
+    balance[payment.from] += payment.amount;
+    balance[payment.to]   -= payment.amount;
+  }
+  return balance;
+}
+
+// Quién puede editar o eliminar un gasto: quien lo cargó, un admin del grupo o de la app.
+// Los gastos viejos no tienen createdBy: ahí cuenta quien figura como que pagó.
+function canChangeExpense(group, expense, user) {
+  if (user.isAdmin || isGroupAdmin(group, user.id)) return true;
+  return expense.createdBy ? expense.createdBy === user.id : expense.paidBy === user.id;
 }
 
 // Datos del integrante para mostrar su avatar en la notificación (con fallback al actor sin foto).
@@ -189,7 +217,7 @@ export async function addExpense(req, res) {
       return res.status(400).json({ error: 'Pagador y participantes deben ser miembros del grupo' });
     }
 
-    group.expenses.push({ description, amount: parseFloat(amount), paidBy, participants });
+    group.expenses.push({ description, amount: parseFloat(amount), paidBy, participants, createdBy: req.user.id });
     await group.save();
 
     const expense = group.expenses[group.expenses.length - 1];
@@ -209,6 +237,7 @@ export async function addExpense(req, res) {
       amount: expense.amount,
       paidBy: expense.paidBy,
       participants: expense.participants,
+      createdBy: expense.createdBy ?? null,
       createdAt: expense.createdAt,
     });
   } catch (e) {
@@ -227,9 +256,8 @@ export async function updateExpense(req, res) {
     const expense = group.expenses.id(req.params.expenseId);
     if (!expense) return res.status(404).json({ error: 'Gasto no encontrado' });
 
-    const canEdit = req.user.isAdmin || isGroupAdmin(group, req.user.id) || expense.paidBy === req.user.id;
-    if (!canEdit) {
-      return res.status(403).json({ error: 'No tenés permiso para editar este gasto' });
+    if (!canChangeExpense(group, expense, req.user)) {
+      return res.status(403).json({ error: 'Solo quien cargó el gasto o un admin del split puede editarlo' });
     }
 
     const { description, amount, paidBy, participants } = req.body;
@@ -254,6 +282,7 @@ export async function updateExpense(req, res) {
       amount: expense.amount,
       paidBy: expense.paidBy,
       participants: expense.participants,
+      createdBy: expense.createdBy ?? null,
       createdAt: expense.createdAt,
     });
   } catch (e) {
@@ -274,9 +303,8 @@ export async function deleteExpense(req, res) {
     const expense = group.expenses.id(req.params.expenseId);
     if (!expense) return res.status(404).json({ error: 'Gasto no encontrado' });
 
-    const canDelete = req.user.isAdmin || isGroupAdmin(group, req.user.id);
-    if (!canDelete) {
-      return res.status(403).json({ error: 'No tenés permiso para eliminar este gasto' });
+    if (!canChangeExpense(group, expense, req.user)) {
+      return res.status(403).json({ error: 'Solo quien cargó el gasto o un admin del split puede eliminarlo' });
     }
 
     expense.deleteOne();
@@ -295,24 +323,7 @@ export async function getSettlement(req, res) {
       return res.status(403).json({ error: 'No pertenecés a este grupo' });
     }
 
-    // Paso 1: balance neto por persona = lo que pagó − lo que consumió
-    const balance = {};
-    for (const member of group.members) {
-      balance[member.id] = 0;
-    }
-    for (const expense of group.expenses) {
-      const share = expense.amount / expense.participants.length;
-      balance[expense.paidBy] += expense.amount;
-      for (const participantId of expense.participants) {
-        balance[participantId] -= share;
-      }
-    }
-    for (const payment of group.payments) {
-      balance[payment.from] += payment.amount;
-      balance[payment.to]   -= payment.amount;
-    }
-
-    res.json({ debts: matchDebts(balance) });
+    res.json({ debts: matchDebts(groupBalance(group)) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -339,8 +350,29 @@ export async function addPayment(req, res) {
       return res.status(403).json({ error: 'Solo el deudor o el acreedor pueden marcar este pago' });
     }
 
+    // El pago tiene que corresponder a una deuda que siga pendiente. Si no, es una pantalla
+    // desactualizada o un pago repetido (ej: lo marcaron el que pagó y el que cobró), y
+    // registrarlo daría vuelta las deudas.
+    const pending = matchDebts(groupBalance(group)).find((d) => d.from === from && d.to === to);
+    if (!pending) {
+      return res.status(409).json({ error: 'Esta deuda ya no está pendiente: puede que ya hayan registrado el pago. Actualizamos las deudas.' });
+    }
+    if (parseFloat(amount) > pending.amount + 0.01) {
+      return res.status(409).json({ error: `Ahora la deuda es de $${pending.amount.toFixed(2)}, no de $${parseFloat(amount).toFixed(2)}. Actualizamos las deudas.` });
+    }
+
     group.payments.push({ from, to, amount: parseFloat(amount) });
-    await group.save();
+    // Fuerza el chequeo de versión: si dos pagos llegan a la vez para la misma deuda,
+    // el segundo falla en vez de registrarse dos veces.
+    group.increment();
+    try {
+      await group.save();
+    } catch (e) {
+      if (e.name === 'VersionError') {
+        return res.status(409).json({ error: 'Alguien acaba de registrar un pago en este split. Actualizamos las deudas.' });
+      }
+      throw e;
+    }
 
     await notifyUsers([to], req.user.id, {
       type: 'payment_received',

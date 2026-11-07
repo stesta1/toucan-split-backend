@@ -5,6 +5,7 @@ const expenseSchema = new mongoose.Schema({
   amount:      { type: Number, required: true },
   paidBy:      { type: String, required: true }, // member id (string)
   participants: [{ type: String }],              // array de member id strings
+  createdBy:   { type: String, default: null },  // user id de quien lo cargó (null en gastos viejos)
   createdAt:   { type: Date, default: Date.now },
 });
 
