@@ -105,3 +105,32 @@ export function settleGroup(group) {
   }
   return debts;
 }
+
+const round2 = (n) => Math.round(n * 100) / 100;
+
+// Estado de cada integrante para mostrar, calculado a partir de las transferencias
+// pendientes (así coincide siempre con la pestaña Deudas):
+// kind: 'empty' (sin gastos) | 'settled' | 'owe' | 'owed' | 'mixed' (debe y le deben).
+export function memberStatuses(group, debts) {
+  const statuses = {};
+  for (const member of group.members) {
+    const owe = round2(debts.filter((d) => d.from === member.id).reduce((s, d) => s + d.amount, 0));
+    const owed = round2(debts.filter((d) => d.to === member.id).reduce((s, d) => s + d.amount, 0));
+    let kind = 'settled';
+    if (group.expenses.length === 0) kind = 'empty';
+    else if (owe > 0 && owed > 0) kind = 'mixed';
+    else if (owe > 0) kind = 'owe';
+    else if (owed > 0) kind = 'owed';
+    statuses[member.id] = { kind, owe, owed, amount: kind === 'owe' ? owe : kind === 'owed' ? owed : 0 };
+  }
+  return statuses;
+}
+
+export function expensesTotal(expenses) {
+  return round2(expenses.reduce((s, e) => s + e.amount, 0));
+}
+
+// Lo que le toca a cada participante de un gasto.
+export function expenseShare(expense) {
+  return round2(expense.amount / expense.participants.length);
+}

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   getGroups,
+  getSummary,
   getGroup,
   createGroup,
   deleteGroup,
@@ -19,6 +20,7 @@ const router = Router();
 router.use(requireAuth);
 
 router.get('/', getGroups);
+router.get('/summary', getSummary);
 router.post('/', createGroup);
 router.get('/:id', getGroup);
 router.delete('/:id', deleteGroup);
