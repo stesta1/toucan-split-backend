@@ -1,5 +1,5 @@
 import GroupEvent from '../models/GroupEvent.js';
-import { groupBalance, matchDebts } from './settlement.js';
+import { groupBalance, settleGroup } from './settlement.js';
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
@@ -9,7 +9,7 @@ export function debtSnapshot(group) {
   const balance = groupBalance(group);
   return {
     balances: Object.entries(balance).map(([id, net]) => ({ id, name: name(id), net: round2(net) })),
-    debts: matchDebts(balance).map((d) => ({ ...d, fromName: name(d.from), toName: name(d.to) })),
+    debts: settleGroup(group).map((d) => ({ ...d, fromName: name(d.from), toName: name(d.to) })),
   };
 }
 
