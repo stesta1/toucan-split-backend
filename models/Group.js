@@ -13,6 +13,7 @@ const paymentSchema = new mongoose.Schema({
   from:      { type: String, required: true }, // member id que salda su deuda
   to:        { type: String, required: true }, // member id que recibe el pago
   amount:    { type: Number, required: true },
+  createdBy: { type: String, default: null }, // user id de quien lo registró (null en pagos viejos)
   createdAt: { type: Date, default: Date.now },
 });
 

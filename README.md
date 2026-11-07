@@ -38,3 +38,28 @@ Login, registro y actualización de perfil devuelven `{ ...user, token }`. Los c
 docker build -t toucan-split-backend .
 docker run -p 291:291 --env-file .env toucan-split-backend
 ```
+
+## Historial de cada split (`groupevents`)
+
+Cada acción sobre un split queda registrada en la colección `groupevents`: crear o eliminar el split, sumar integrantes, cambiar admins, cargar, editar o eliminar gastos, y registrar pagos. También se guardan los intentos de pago rechazados. Sirve para reconstruir paso a paso cómo se llegó a un estado.
+
+Cada evento guarda:
+
+- `type`: qué pasó (`expense_added`, `payment_added`, `payment_rejected`, `manual_fix`, etc.).
+- `actor`: quién lo hizo (`id`, `name`).
+- `data`: el gasto o pago completo. En ediciones, también el valor anterior (`previous`). Al eliminar un split, el split entero.
+- `before` / `after`: el saldo de cada integrante y las transferencias pendientes antes y después de la acción, con nombres.
+
+Los gastos (`expenses[].createdBy`) y los pagos (`payments[].createdBy`) guardan además quién los cargó.
+
+Para ver la historia de un split en orden:
+
+```json
+{"find": "groupevents", "filter": {"groupId": "<id del split>"}, "sort": {"createdAt": 1}}
+```
+
+Para ver solo los pagos rechazados (pantallas desactualizadas o pagos repetidos):
+
+```json
+{"find": "groupevents", "filter": {"type": "payment_rejected"}, "sort": {"createdAt": -1}, "limit": 20}
+```

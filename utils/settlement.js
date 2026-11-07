@@ -34,3 +34,23 @@ export function matchDebts(balance) {
 
   return result;
 }
+
+// Balance neto por integrante de un split = lo que pagó − lo que consumió (± pagos registrados).
+export function groupBalance(group) {
+  const balance = {};
+  for (const member of group.members) {
+    balance[member.id] = 0;
+  }
+  for (const expense of group.expenses) {
+    const share = expense.amount / expense.participants.length;
+    balance[expense.paidBy] += expense.amount;
+    for (const participantId of expense.participants) {
+      balance[participantId] -= share;
+    }
+  }
+  for (const payment of group.payments) {
+    balance[payment.from] += payment.amount;
+    balance[payment.to]   -= payment.amount;
+  }
+  return balance;
+}
