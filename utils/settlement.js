@@ -55,50 +55,45 @@ export function groupBalance(group) {
   return balance;
 }
 
-// Saldo de cada integrante contando solo los gastos (sin pagos).
-function expenseBalance(group) {
-  return groupBalance({ members: group.members, expenses: group.expenses, payments: [] });
-}
-
-// Suma una deuda from → to a las transferencias, compensando con la inversa si existe
-// (si A le debe 100 a B y se suma "B le debe 30 a A", queda A → B 70).
-function addDebt(edges, from, to, amount) {
-  const reverse = `${to}>${from}`;
-  const owedBack = edges.get(reverse) || 0;
-  if (owedBack > 0) {
-    const offset = Math.min(owedBack, amount);
-    edges.set(reverse, owedBack - offset);
-    amount -= offset;
-  }
-  if (amount > 0) {
-    const key = `${from}>${to}`;
-    edges.set(key, (edges.get(key) || 0) + amount);
-  }
-}
-
-// Transferencias pendientes de un split, estables frente a los pagos:
-// 1. Con los gastos se arma la lista mínima de transferencias (matchDebts).
-// 2. Cada pago, en orden, descuenta de SU transferencia (from → to); las demás no se tocan.
-// 3. Si un pago supera lo que se debía en esa transferencia (pago de más), el excedente
-//    queda como deuda inversa: quien cobró de más se lo debe a quien pagó.
-// Así, pagar una transferencia de la lista nunca cambia a quién le debe el resto.
-// Los saldos que quedan son siempre los mismos que los de groupBalance.
+// Transferencias pendientes de un split. Se recorren gastos y pagos en el orden en que
+// se cargaron:
+// - Cada gasto cambia lo que le corresponde a cada uno, así que las transferencias se
+//   vuelven a calcular de cero con los saldos (matchDebts), como hacía la app original.
+// - Cada pago descuenta solo de SU transferencia (from → to); las demás no se tocan.
+//   Así, pagar una transferencia de la lista nunca cambia a quién le debe el resto.
+// - Si un pago no entra en ninguna transferencia pendiente (pagó de más, o un gasto se
+//   editó después de que pagara), se recalcula de cero con los saldos.
+// En todos los casos los saldos que quedan son los mismos que los de groupBalance:
+// cada uno debe (o cobra) exactamente lo que le corresponde, contando lo que ya transfirió.
 export function settleGroup(group) {
-  const edges = new Map();
-  for (const d of matchDebts(expenseBalance(group))) edges.set(`${d.from}>${d.to}`, d.amount);
+  const balance = {};
+  for (const member of group.members) balance[member.id] = 0;
+  const add = (id, amount) => { balance[id] = (balance[id] || 0) + amount; };
 
-  const payments = [...group.payments]
-    .map((p, i) => ({ p, i }))
-    .sort((a, b) => (new Date(a.p.createdAt) - new Date(b.p.createdAt)) || (a.i - b.i))
-    .map(({ p }) => p);
+  const events = [
+    ...group.expenses.map((e, i) => ({ kind: 'expense', at: new Date(e.createdAt).getTime() || 0, i, item: e })),
+    ...group.payments.map((p, i) => ({ kind: 'payment', at: new Date(p.createdAt).getTime() || 0, i, item: p })),
+  ].sort((a, b) => (a.at - b.at) || (a.kind === b.kind ? a.i - b.i : a.kind === 'expense' ? -1 : 1));
 
-  for (const payment of payments) {
-    const key = `${payment.from}>${payment.to}`;
-    const owed = edges.get(key) || 0;
-    const covered = Math.min(owed, payment.amount);
-    edges.set(key, owed - covered);
-    const excess = payment.amount - covered;
-    if (excess >= CENT / 2) addDebt(edges, payment.to, payment.from, excess);
+  let edges = new Map();
+  const replan = () => {
+    edges = new Map(matchDebts(balance).map((d) => [`${d.from}>${d.to}`, d.amount]));
+  };
+
+  for (const { kind, item } of events) {
+    if (kind === 'expense') {
+      const share = item.amount / item.participants.length;
+      add(item.paidBy, item.amount);
+      for (const participantId of item.participants) add(participantId, -share);
+      replan();
+    } else {
+      add(item.from, item.amount);
+      add(item.to, -item.amount);
+      const key = `${item.from}>${item.to}`;
+      const owed = edges.get(key) || 0;
+      if (item.amount <= owed + CENT / 2) edges.set(key, Math.max(0, owed - item.amount));
+      else replan();
+    }
   }
 
   const debts = [];
