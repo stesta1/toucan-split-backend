@@ -54,3 +54,59 @@ export function groupBalance(group) {
   }
   return balance;
 }
+
+// Saldo de cada integrante contando solo los gastos (sin pagos).
+function expenseBalance(group) {
+  return groupBalance({ members: group.members, expenses: group.expenses, payments: [] });
+}
+
+// Suma una deuda from → to a las transferencias, compensando con la inversa si existe
+// (si A le debe 100 a B y se suma "B le debe 30 a A", queda A → B 70).
+function addDebt(edges, from, to, amount) {
+  const reverse = `${to}>${from}`;
+  const owedBack = edges.get(reverse) || 0;
+  if (owedBack > 0) {
+    const offset = Math.min(owedBack, amount);
+    edges.set(reverse, owedBack - offset);
+    amount -= offset;
+  }
+  if (amount > 0) {
+    const key = `${from}>${to}`;
+    edges.set(key, (edges.get(key) || 0) + amount);
+  }
+}
+
+// Transferencias pendientes de un split, estables frente a los pagos:
+// 1. Con los gastos se arma la lista mínima de transferencias (matchDebts).
+// 2. Cada pago, en orden, descuenta de SU transferencia (from → to); las demás no se tocan.
+// 3. Si un pago supera lo que se debía en esa transferencia (pago de más), el excedente
+//    queda como deuda inversa: quien cobró de más se lo debe a quien pagó.
+// Así, pagar una transferencia de la lista nunca cambia a quién le debe el resto.
+// Los saldos que quedan son siempre los mismos que los de groupBalance.
+export function settleGroup(group) {
+  const edges = new Map();
+  for (const d of matchDebts(expenseBalance(group))) edges.set(`${d.from}>${d.to}`, d.amount);
+
+  const payments = [...group.payments]
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => (new Date(a.p.createdAt) - new Date(b.p.createdAt)) || (a.i - b.i))
+    .map(({ p }) => p);
+
+  for (const payment of payments) {
+    const key = `${payment.from}>${payment.to}`;
+    const owed = edges.get(key) || 0;
+    const covered = Math.min(owed, payment.amount);
+    edges.set(key, owed - covered);
+    const excess = payment.amount - covered;
+    if (excess >= CENT / 2) addDebt(edges, payment.to, payment.from, excess);
+  }
+
+  const debts = [];
+  for (const [key, amount] of edges) {
+    const rounded = Math.round(amount * 100) / 100;
+    if (rounded < CENT) continue;
+    const [from, to] = key.split('>');
+    debts.push({ from, to, amount: rounded });
+  }
+  return debts;
+}

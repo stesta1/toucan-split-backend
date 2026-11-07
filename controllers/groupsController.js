@@ -1,6 +1,6 @@
 import Group from '../models/Group.js';
 import User from '../models/User.js';
-import { groupBalance, matchDebts } from '../utils/settlement.js';
+import { settleGroup } from '../utils/settlement.js';
 import { debtSnapshot, logGroupEvent, plain } from '../utils/groupEvents.js';
 import { notifyUsers } from '../utils/notify.js';
 import { nonFriendIds } from '../utils/friends.js';
@@ -326,7 +326,7 @@ export async function getSettlement(req, res) {
       return res.status(403).json({ error: 'No pertenecés a este grupo' });
     }
 
-    res.json({ debts: matchDebts(groupBalance(group)) });
+    res.json({ debts: settleGroup(group) });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
